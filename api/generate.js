@@ -1,7 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 
 export default async function handler(req, res) {
-  // POST 요청만 허용
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -13,8 +12,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 환경변수에서 API 키 자동 로드
-    const ai = new GoogleGenAI();
+    // API 키 존재 여부 확인
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY가 설정되지 않았습니다.' });
+    }
+
+    // apiKey를 명시적으로 전달
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     const prompt = `
 사용자가 입력한 영어 단어/숙어: "${word}"
@@ -45,6 +49,6 @@ export default async function handler(req, res) {
     return res.status(200).json(parsedData);
   } catch (error) {
     console.error('API Call Error:', error);
-    return res.status(500).json({ error: 'AI 암기 카드를 생성하는 중 오류가 발생했습니다.' });
+    return res.status(500).json({ error: error.message || 'AI 암기 카드를 생성하는 중 오류가 발생했습니다.' });
   }
 }
