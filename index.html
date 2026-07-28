@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 영단어 암기장</title>
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --bg: #F3F4F6;
+      --card-bg: #FFFFFF;
+      --text: #1F2937;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    header {
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      color: var(--primary);
+      margin-bottom: 6px;
+    }
+
+    header p {
+      font-size: 0.95rem;
+      color: #6B7280;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    input {
+      flex: 1;
+      padding: 14px 16px;
+      border: 2px solid #E5E7EB;
+      border-radius: 12px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      border-color: var(--primary);
+    }
+
+    button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 0 20px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    button:disabled {
+      background-color: #9CA3AF;
+      cursor: not-allowed;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card.active {
+      display: flex;
+    }
+
+    .word-header {
+      border-bottom: 2px solid #F3F4F6;
+      padding-bottom: 12px;
+    }
+
+    .word-header h2 {
+      font-size: 2rem;
+      color: var(--primary);
+    }
+
+    .word-header .meaning {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #374151;
+      margin-top: 4px;
+    }
+
+    .section-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #9CA3AF;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .section-content {
+      font-size: 1rem;
+      line-height: 1.5;
+      color: #4B5563;
+      background-color: #F9FAFB;
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #6B7280;
+      display: none;
+    }
+
+    .loading.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>💡 AI 영단어 암기장</h1>
+      <p>단어를 입력하면 한 번에 외워지는 암기 팁을 만들어드려요.</p>
+    </header>
+
+    <div class="input-group">
+      <input type="text" id="wordInput" placeholder="예: reluctant, meticulous" onkeydown="if(event.key==='Enter') generateCard()">
+      <button id="submitBtn" onclick="generateCard()">생성</button>
+    </div>
+
+    <div id="loading" class="loading">
+      ⚡ Gemini가 암기 카드를 생성하는 중...
+    </div>
+
+    <div id="resultCard" class="card">
+      <div class="word-header">
+        <h2 id="cardWord">Word</h2>
+        <div class="meaning" id="cardMeaning">뜻</div>
+      </div>
+
+      <div>
+        <div class="section-title">🧠 쉽게 외우는 팁 (연상법)</div>
+        <div class="section-content" id="cardMnemonic"></div>
+      </div>
+
+      <div>
+        <div class="section-title">🖼️ 머릿속 이미지 묘사</div>
+        <div class="section-content" id="cardVisual"></div>
+      </div>
+
+      <div>
+        <div class="section-title">💬 예문</div>
+        <div class="section-content">
+          <p id="cardExampleEn" style="font-weight: 600; color: #1F2937;"></p>
+          <p id="cardExampleKr" style="margin-top: 4px; color: #6B7280; font-size: 0.9rem;"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function generateCard() {
+      const input = document.getElementById('wordInput');
+      const word = input.value.trim();
+
+      if (!word) {
+        alert('외우고 싶은 단어를 입력해주세요!');
+        return;
+      }
+
+      const btn = document.getElementById('submitBtn');
+      const loading = document.getElementById('loading');
+      const card = document.getElementById('resultCard');
+
+      // UI 초기화 및 로딩 표시
+      btn.disabled = true;
+      loading.classList.add('active');
+      card.classList.remove('active');
+
+      try {
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ word })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || '오류가 발생했습니다.');
+        }
+
+        // 결과 카드에 데이터 반영
+        document.getElementById('cardWord').innerText = data.word;
+        document.getElementById('cardMeaning').innerText = data.meaning;
+        document.getElementById('cardMnemonic').innerText = data.mnemonic;
+        document.getElementById('cardVisual').innerText = data.visualPrompt;
+        document.getElementById('cardExampleEn').innerText = data.exampleEn;
+        document.getElementById('cardExampleKr').innerText = data.exampleKr;
+
+        card.classList.add('active');
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+        loading.classList.remove('active');
+      }
+    }
+  </script>
+</body>
+</html>
